@@ -2,7 +2,7 @@
 FROM balenalib/armv7hf-debian:stretch
 
 #enable building ARM container on x86 machinery on the web (comment out next line if built on Raspberry) 
-RUN [ "cross-build-start" ]
+#RUN [ "cross-build-start" ]
 
 #labeling
 LABEL maintainer="netpi@hilscher.com" \ 
