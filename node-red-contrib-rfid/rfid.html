@@ -1,0 +1,288 @@
+<!-- **********************************************************************************
+* Copyright (c) 2017 Hilscher Gesellschaft fuer Systemautomation mbH.
+* See LICENSE
+***************************************************************************************
+* Description:
+* A Node-RED node communicating with NPIX- or NXHAT52-RFID module
+**************************************************************************************-->
+
+<!-- Edit dialog rfid. -->
+<script type="text/x-red" data-template-name="rfid">
+    <!-- Reader -->
+    <div class="form-row">
+    <label for="node-input-reader"><i class="fa fa-random"></i> Reader</label>
+    <input type="text" id="node-input-reader" placeholder= "reader">
+    </div>
+
+    <!-- Name -->
+    <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder= "name">
+    </div>
+</script>
+
+<!-- Help text rfid. -->
+<script type="text/x-red" data-help-name="rfid">
+    <p>Node that connects to NPIX- or NXHAT52-RFID module to read and write UHF-RFID tags.</p>
+    <p><b>WARNING:</b> Use only <b>with connected Antenna</b>! Using without connected antenna will damage the module.</p>
+    <ul>
+    <li><b>Reader:</b> Connected rfid module.</li>
+    <li><b>Name:</b> Custom name.</li>
+    </ul>
+
+    <p><b>Read a tag:</b> Inject a message with</p>
+    <ul>
+    <li><code> msg.payload = "read"</code> to read the epc of one tag. Outputs an object with <code>msg.epc</code> and <code>msg.argument</code>. <code>msg.arguments</code> holds the parsed memory banks.. </li>
+    <li> or <code> msg.payload = "read:EPC,RES,USER,TID"</code> to read all memory banks. Outputs an object with <code>msg.epc</code>, <code>msg.res</code>, <code>msg.user</code>, <code>msg.tid</code> and <code>msg.argument</code> = EPC,RES,USER,TID.</li>
+    <li> or <code> msg.payload = "read:RES,TID"</code> to read res and tid memory banks and so on.</li>
+    </ul>
+
+    <p><b>Write a tag:</b> Inject a message with</p>
+    <ul>
+    <li><code> msg.payload = "write"</code></li>
+    <li><code> msg.filter = "a612ea7e3b977832"</code> the write operation is performed if msg.filter contains only hex values and is equal to the epc of an available tag. If left empty or undefined the operation will be applied to the first tag found. </li>
+    <li><code> msg.epc = "7223f7b0e63e68"</code> string of hex values to write into epc bank. </li>
+    <li><code> msg.res = "00000000a1b2c3d4"</code> string of max 16 hex chars 00000000|a1b2c3d4 first 8 chars kill password | last 8 chars access password</li>
+    <li><code> msg.user = "00000000"</code> string of hex values to write into user bank</li>
+    <li>If one of the banks in the message is an empty string or not defined the write operation on this bank is not performed.
+    </ul>
+
+    <p><b>Lock or unlock a tag:</b> Inject a message with</p>
+    <ul>
+    <li><code> msg.payload = "lock"</code></li>
+    <li><code> msg.filter = "a612ea7e3b977832"</code> the lock operation is performed if msg.filter contains only hex values and is equal to the epc of an available tag. If left empty or undefined the first tag found will be used. </li>
+    <li><code> msg.password = "831c95a5 "</code> 8 hex chars access password.  </li>
+    <li><code> msg.locks = "KILL_LOCK,ACCESS_LOCK"</code> contains comma seperated Lock operations:</li>
+    <ul>
+    <li>EPC_LOCK, EPC_UNLOCK,EPC_PERMALOCK, EPC_PERMAUNLOCK</li>
+    <li>ACCESS_LOCK, ACCESS_UNLOCK, ACCESS_PERMALOCK, ACCESS_PERMAUNLOCK</li>
+    <li>TID_LOCK,TID_UNLOCK, TID_PERMALOCK, TID_PERMAUNLOCK</li>
+    <li>USER_LOCK, USER_UNLOCK, USER_PERMALOCK, USER_PERMAUNLOCK</li>
+    <li>KILL_LOCK, KILL_UNLOCK, KILL_PERMALOCK, KILL_PERMAUNLOCK</li>
+    </ul>
+    </ul>
+
+    <p><b>Kill a tag:</b> Inject a message with</p>
+    <ul>
+    <li><code> msg.payload = "kill"</code></li>
+    <li><code> msg.filter = "a612ea7e3b977832"</code> the lock operation is performed if msg.filter contains only hex values and is equal to the epc of an available tag. If left empty or undefined the first tag found will be used. </li>
+    <li><code> msg.password = "ab3694ae"</code> 8 hex chars kill password.  </li>
+    </ul>
+
+    <p><b>Start continous read:</b> Inject a message with <code> msg.payload = "start"</code> to read the epc of tags continous.</li>
+
+    <p><b>Stop continous read:</b> Inject a message with <code> msg.payload = "stop"</code> to read the epc of tags continous.</li>
+
+    <p><b>Get reader information:</b> Inject a message with <code> msg.payload = "info"</code> to read reader information.</li>
+
+    <p><b>Reboot:</b> Inject a message with <code> msg.payload = "reboot"</code> to reboot the rfid module</li>
+
+    <p><b>Update firmware:</b> Inject a message with <code> msg.payload = "fwupdate"</code> <code> msg.path = "/path/firmware.sim"</code> to update the firmware. This will take up to one minute and reboots the reader</li>
+
+
+</script>
+
+<!-- Register rfid. -->
+<script type="text/javascript">
+    RED.nodes.registerType('rfid', {
+        category: 'npix',
+        color:"#0087C9",
+        defaults: {
+            reader: {type: "rfid-reader", required: true},
+            name: {value: ""}
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "bridge.png",
+        label: function () {
+            var rfidReader = RED.nodes.node(this.reader);
+            return this.name || (rfidReader ? ("rfid " + rfidReader.label()) : "rfid");
+//            var readerVar = RED.nodes.node(this.reader);("read " + rfidReader.label().split("/")[2])
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        }
+    });
+</script>
+
+<script type="text/x-red" data-template-name="rfid-reader"> 
+    <!--port -->
+    <div class="form-row">
+    <label for="node-config-input-port"><i class="fa fa-random"></i> Serial Port</label>
+    <input type="text" id="node-config-input-port" style="width:60%;" placeholder="/dev/ttyS0">
+    </div>
+
+    <!--Region -->
+    <div class="form-row">
+    <label for="node-config-input-region"><i class="fa fa-globe"></i> Region</label>
+    <select type="text" id="node-config-input-region" style="width:70px;">
+    <option value="-">-</option>
+    <option value="AU">AU</option>
+    <option value="CN">CN</option>
+    <option value="EU">EU</option>
+    <option value="IN">IN</option>
+    <option value="JP">JP</option>
+    <option value="KR">KR</option>
+    <option value="NA">NA</option>
+    <option value="NZ">NZ</option>
+    </select>
+    </div>
+
+    <!--Read power -->
+    <div class="form-row">
+    <label for="node-config-input-power"><i class="fa fa-wifi"></i> Power</label>
+    <input type="text" id="node-config-input-power" style="width:65px;"> dBm
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="rfid-reader">
+    <p>Node that connects to NIOT-E-NPIX-RFID module to read an write UHF-RFID tags.</p>
+    <ul>
+    <li><b>Serial Port:</b> The serial port to the RFID module:</li>
+    <ul>
+    <li>/dev/ttyS0</li>
+    </ul>
+    <li><b>Region:</b> Sets the region specific frequency settings of the RFID module.</li>
+    <ul>
+    <li>Australia (AU) 920-926 MHz </li>
+    <li>P.R.China (CN) 920.1-924.9 MHz </li>
+    <li>Europe (EU) 865.6-867.6 MHz </li>
+    <li>India (IN) 865-867 MHz </li>
+    <li>Japan (JP) 916.8 – 923.4 MHz </li>
+    <li>Korea (KR) 917-923.5 MHz </li>
+    <li>North and South America (NA) 917.4-927.2 MHz </li>
+    <li>New Zealand (NZ) 922-927.5 MHz </li>
+    </ul>
+    <li><b>Power:</b> Read and write power adjustable between 0 dBm and 18 dBm. With higher power higher range is achieved but module gets warmer.
+    Low power results in smaller backscattering and better performance. 
+    If the module gets warmer than 85°C the performance is reduced.</li>
+    </ul>
+</script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('rfid-reader', {
+        category: 'config',
+        defaults: {
+            port: {value: "/dev/ttyS0", required: true},
+            region: {value: "-", required: true},
+            power: {value: "5", required: true, validate: RED.validators.number()}
+        },
+        label: function () {
+            if (this.port && this.power && this.region)
+                return this.port.split("/")[2] + "@" + this.power + "dBm";
+            return "rfid";
+        },
+        oneditsave: function () {
+            if (isNaN(Number($("#node-config-input-power").val()))) {
+                alert("WARNING: Power is not a number. Set to 0dBm!");
+                $("#node-config-input-power").val(0);
+            }
+            if (Number($("#node-config-input-power").val()) > 18) {
+                alert("WARNING: Power to high. Set to 18dBm!");
+                $("#node-config-input-power").val(18);
+            }
+            if (Number($("#node-config-input-power").val()) < 0) {
+                alert("WARNING: Power to low. Set to 0dBm!");
+                $("#node-config-input-power").val(0);
+            }
+            var number = parseInt($("#node-config-input-power").val());
+            $("#node-config-input-power").val(number);
+            if (($("#node-config-input-region")).val() === "-") {
+                alert("WARNING: Unspecified region!");
+            }
+        }
+    });
+</script>
+
+<!-- edit dialog rfid gpi -->
+<script type="text/x-red" data-template-name="rfid gpi">
+    <!-- Reader -->
+    <div class="form-row">
+    <label for="node-input-reader"><i class="fa fa-random"></i> Reader</label>
+    <input type="text" id="node-input-reader" placeholder= "reader">
+    </div>
+    <!-- Name -->
+    <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder= "name">
+    </div>
+</script>
+
+<!-- help text rfid gpi -->
+<script type="text/x-red" data-help-name="rfid gpi">
+    <p>Node that connects to NPIX- or NXHAT52-RFID module to read the input pin. 
+    Outputs a <code> msg.payload</code> with 0 or 1 depending on the input pin. The
+    <code> msg.topic</code> is set to <i>rfid gpi </i>.</p>
+    <p>Node that connects to NPIX-and NXHAT52-RFID module to read the input pin.</p>
+    <ul>
+    <li><b>Reader:</b> Connected rfid module.</li>
+    <li><b>Name:</b> Custom name.</li>
+    </ul>
+</script>
+
+<!-- code rfid gpi -->
+<script type="text/javascript">
+    RED.nodes.registerType('rfid gpi', {
+        category: 'npix',
+        color:"#0087C9",
+        defaults: {
+            reader: {type: "rfid-reader", required: true},
+            name: {value: ""}
+        },
+        inputs: 0,
+        outputs: 1,
+        icon: "bridge.png",
+        label: function () {
+            return this.name || "rfid gpi";
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        }
+    });
+</script>
+
+<!-- edit dialog rfid gpo -->
+<script type="text/x-red" data-template-name="rfid gpo">
+    <!-- Reader -->
+    <div class="form-row">
+    <label for="node-input-reader"><i class="fa fa-random"></i> Reader</label>
+    <input type="text" id="node-input-reader" placeholder= "reader">
+    </div>
+    <!-- Name -->
+    <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder= "name">
+    </div>
+</script>
+
+<!-- help text rfid gpo -->
+<script type="text/x-red" data-help-name="rfid gpo">
+    <p>Node that connects to NPIX- or NXHAT52-RFID module to set the output pin. 
+    Sets the output high or low depending on <code> msg.payload</code> is 1 or 0.</p>
+    <ul>
+    <li><b>Reader:</b> Connected rfid module.</li>
+    <li><b>Name:</b> Custom name.</li>
+    </ul>
+</script>
+
+<!-- code rfid gpo -->
+<script type="text/javascript">
+    RED.nodes.registerType('rfid gpo', {
+        category: 'npix',
+        color:"#0087C9",
+        defaults: {
+            reader: {type: "rfid-reader", required: true},
+            name: {value: ""}
+        },
+        inputs: 1,
+        outputs: 0,
+        align: 'right',
+        icon: "bridge.png",
+        label: function () {
+            return this.name || "rfid gpo";
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        }
+    });
+</script>
